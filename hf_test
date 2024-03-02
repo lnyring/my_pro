@@ -1,0 +1,61 @@
+import re
+import pandas as pd
+#查找字符串是否包含另外一个子串
+def is_equal(a,b):
+    return 1 if len(re.findall(a,b)) else 0
+
+def df_match(l_data,given_nums):
+   p_data=pd.DataFrame(l_data,columns=['peer_id','id_1','id_2','year'])
+   p_data['is_equal']=(p_data.apply(lambda x : is_equal(x.id_2,x.peer_id),axis=1))
+   #满足第一步的数据
+   new_data=p_data[p_data['is_equal']==1][['peer_id','year']]
+   #每行数据增加一个分组(peer_id分组)内的最大年份数据列
+   new_data.rename(columns={'year':'max_year'},inplace=True)
+   #print(p_data['peer_id']==new_data['peer_id'])
+   new_data2=pd.merge(p_data,new_data,on='peer_id')
+   #判断数据中比第一步返回的组内(peer_id分组)最大年份的其它年份记录
+   new_data3=new_data2[new_data2['year']<=new_data2['max_year'] ].sort_values(by='year',ascending=False)
+   #统计每个按照peer_id分组的年份数量
+   new_data4=new_data3.groupby(['peer_id','year'])['id_2'].count()
+   new_data5=pd.DataFrame(new_data4)
+   new_data5.reset_index(inplace=True)
+   #按照统计的数据peer_id,year倒序排序
+   new_data6=new_data5.sort_values(by=['peer_id','year'],ascending=False)
+   #以peer_id组内的各个年份记录数的累计求和
+   new_data6['cumsum']=new_data6.groupby('peer_id')['id_2'].cumsum()
+   new_data6['csum']=new_data6['cumsum']
+   #提取累计求和中大于外部给定数值的记录
+   new_data7=new_data6[new_data6['cumsum']>=given_nums]
+   #提取提取累计求和中大于外部给定数值的记录的最小满足的那条记录数(用于后面更新数据)
+   new_data8=new_data7.groupby('peer_id')['cumsum'].min()
+   new_data9=pd.DataFrame(new_data8)
+   #peer_id由列转为行索引，方便后面更新使用
+   new_data6.set_index('peer_id',inplace=True)
+   #用分组累计求和中大于外部给定数值的记录的最小满足的那条记录数更新
+   new_data6.update(new_data9)
+   print('................................................')
+   #提取出满足的最终数据
+   print(new_data6[new_data6['csum']<=new_data6['cumsum']].reset_index()[['peer_id','year']].sort_values(by=['peer_id','year'],ascending=False))
+l_data=[
+            ('AE686(AE)', '7', 'AE686', 2022),
+            ('AE686(AE)', '8', 'BH2740', 2021),
+            ('AE686(AE)', '9', 'EG999', 2021),
+            ('AE686(AE)', '10', 'AE0908', 2023),
+            ('AE686(AE)', '11', 'QA402', 2022),
+            ('AE686(AE)', '12', 'OA691', 2022),
+            ('AE686(AE)', '12', 'OB691', 2022),
+            ('AE686(AE)', '12', 'OC691', 2019),
+            ('AE686(AE)', '12', 'OD691', 2017)
+]
+"""1,peer_id是否保含id_2内容找出对应的peer_id年份
+    2,以peer_id分组，统计对应组内比第一步返回的年份小于或者等于的年份数量，并按照年份倒序排序
+    3，每组内统计从第一条开始跟给定数值比较，大于则直接返回，如果累计小于则再取下一行的年份值做累计直到
+    累计值大于给定数值
+"""
+given_nums=7
+print('给定的原始数据是.......................................................................')
+print(l_data)
+print('给定的比较数值是.......................................................................')
+print(given_nums)
+print('输出的最终结果是.......................................................................')
+df_match(l_data,given_nums)
